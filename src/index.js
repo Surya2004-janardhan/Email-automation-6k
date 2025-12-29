@@ -26,7 +26,7 @@ async function main() {
 
   try {
     // Phase 1: Load unsent emails
-    const allUnsentEmails = loadUnsentEmails(
+    const allUnsentEmails = await loadUnsentEmails(
       filePath,
       openPassword,
       editPassword
