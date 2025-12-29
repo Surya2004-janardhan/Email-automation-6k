@@ -4,10 +4,6 @@ require("dotenv").config();
 
 /**
  * Phase 3: Send emails in batches
- * @param {Array} batch - Array of email objects for this batch
- * @param {string} subject - Email subject
- * @param {string} body - Email body
- * @param {string} resumePath - Path to resume file
  * @returns {Array} Array of sent email addresses
  */
 async function sendEmails(batch, subject, body, resumePath) {

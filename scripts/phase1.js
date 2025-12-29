@@ -3,9 +3,6 @@ const path = require("path");
 
 /**
  * Phase 1: Load and filter unsent emails from XLSX file
- * @param {string} filePath - Path to the XLSX file
- * @param {string} openPassword - Password to open the file
- * @param {string} editPassword - Password to edit the file
  * @returns {Array} Array of unsent email objects
  */
 function loadUnsentEmails(filePath, openPassword, editPassword) {

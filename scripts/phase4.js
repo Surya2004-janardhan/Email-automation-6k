@@ -2,9 +2,6 @@ const XLSX = require("xlsx");
 
 /**
  * Phase 4: Update sent status in XLSX file
- * @param {string} filePath - Path to the XLSX file
- * @param {Array} sentEmails - Array of emails that were sent
- * @param {string} editPassword - Password to edit the file
  */
 function updateSentStatus(filePath, sentEmails, editPassword) {
   const workbook = XLSX.readFile(filePath, { password: editPassword });
