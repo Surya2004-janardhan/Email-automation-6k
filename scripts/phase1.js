@@ -41,7 +41,12 @@ async function loadUnsentEmails(filePath, openPassword, editPassword) {
         row.eachCell((cell, colNumber) => {
           const headerCell = worksheet.getCell(1, colNumber);
           if (headerCell && headerCell.value) {
-            rowData[headerCell.value] = cell.value;
+            // Handle ExcelJS cell values - extract text from objects
+            let cellValue = cell.value;
+            if (cellValue && typeof cellValue === 'object' && cellValue.text) {
+              cellValue = cellValue.text;
+            }
+            rowData[headerCell.value] = cellValue;
           }
         });
         data.push(rowData);

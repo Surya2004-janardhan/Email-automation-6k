@@ -14,15 +14,14 @@ async function main() {
 
   // Subject and body - update as needed
   const subject = "Seeking Opportunity in SDE / Full Stack / AI intern";
-  const body = `
-                Hi,
+  const body = `Hi,
 
-                I enjoy solving problems and am looking for opportunities to work on real-world projects while growing as an engineer. I’ve attached my resume for any SDE / Full Stack / AI roles you might have.
+I enjoy solving problems and am looking for opportunities to work on real-world projects while growing as an engineer. I’ve attached my resume for any SDE / Full Stack / AI roles you might have.
 
-                Looking forward to contributing to your team.
+Looking forward to contributing to your team.
 
-                Thanks & Regards,
-                Surya Janardhan`;
+Thanks & Regards,
+Surya Janardhan`;
 
   try {
     // Phase 1: Load unsent emails

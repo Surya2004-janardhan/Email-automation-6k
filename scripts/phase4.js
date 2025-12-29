@@ -48,11 +48,13 @@ async function updateSentStatus(
         const emailCell = row.getCell(1); // Assuming email is in column 1
         const statusCell = row.getCell(2); // Assuming sent_status is in column 2
 
-        if (
-          emailCell &&
-          emailCell.value &&
-          sentEmails.includes(emailCell.value)
-        ) {
+        // Extract text from cell value if it's an object
+        let emailValue = emailCell.value;
+        if (emailValue && typeof emailValue === 'object' && emailValue.text) {
+          emailValue = emailValue.text;
+        }
+
+        if (emailValue && sentEmails.includes(emailValue)) {
           statusCell.value = "email sent";
           updatedCount++;
         }

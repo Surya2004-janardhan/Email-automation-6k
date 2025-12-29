@@ -20,7 +20,7 @@ async function sendEmails(batch, subject, body, resumePath) {
 
   // Send ONE email BCC'd to all recipients in the batch
   const bccRecipients = batch.map((emailObj) => emailObj.email);
-
+  
   const mailOptions = {
     from: process.env.EMAIL_USER,
     bcc: bccRecipients, // BCC to all 50 emails at once
