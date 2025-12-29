@@ -1,4 +1,4 @@
-const ExcelJS = require("exceljs");
+const XlsxPopulate = require("xlsx-populate");
 const path = require("path");
 
 /**
@@ -7,51 +7,27 @@ const path = require("path");
  */
 async function loadUnsentEmails(filePath, openPassword, editPassword) {
   try {
-    const workbook = new ExcelJS.Workbook();
+    const workbook = await XlsxPopulate.fromFileAsync(filePath, {
+      password:
+        openPassword && openPassword.trim() !== "" ? openPassword : undefined,
+    });
 
-    // Try to read with password first if provided
-    if (openPassword && openPassword.trim() !== "") {
-      try {
-        await workbook.xlsx.readFile(filePath, { password: openPassword });
-        console.log("Successfully opened password-protected Excel file");
-      } catch (passwordError) {
-        console.log("Password read failed, trying without password...");
-        // If password fails, try without password
-        await workbook.xlsx.readFile(filePath);
-        console.log("Successfully opened Excel file without password");
-      }
-    } else {
-      // No password provided, read normally
-      await workbook.xlsx.readFile(filePath);
-      console.log("Successfully opened Excel file (no password)");
-    }
-
-    const worksheet = workbook.getWorksheet(1); // First worksheet
-    if (!worksheet) {
-      throw new Error("No worksheets found in the Excel file");
-    }
-
+    const sheet = workbook.sheet(0); // First worksheet
     const data = [];
 
-    // Convert worksheet to JSON
-    worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber > 1) {
-        // Skip header row
-        const rowData = {};
-        row.eachCell((cell, colNumber) => {
-          const headerCell = worksheet.getCell(1, colNumber);
-          if (headerCell && headerCell.value) {
-            // Handle ExcelJS cell values - extract text from objects
-            let cellValue = cell.value;
-            if (cellValue && typeof cellValue === "object" && cellValue.text) {
-              cellValue = cellValue.text;
-            }
-            rowData[headerCell.value] = cellValue;
-          }
+    // Get all rows
+    const rows = sheet.usedRange().value();
+
+    // Skip header row, process data rows
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (row && row.length >= 2) {
+        data.push({
+          email: row[0], // Column A
+          sent_status: row[1], // Column B
         });
-        data.push(rowData);
       }
-    });
+    }
 
     console.log(`Loaded ${data.length} rows from Excel file`);
 

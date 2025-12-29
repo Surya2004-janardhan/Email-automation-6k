@@ -21,9 +21,16 @@ async function sendEmails(batch, subject, body, resumePath) {
   // Send ONE email BCC'd to all recipients in the batch
   const bccRecipients = batch.map((emailObj) => emailObj.email);
 
+  // Remove duplicates to avoid sending multiple emails to same address
+  const uniqueRecipients = [...new Set(bccRecipients)];
+
+  console.log(
+    `Sending to ${uniqueRecipients.length} unique recipients (from ${bccRecipients.length} total)`
+  );
+
   const mailOptions = {
     from: process.env.EMAIL_USER,
-    bcc: bccRecipients, // BCC to all 50 emails at once
+    bcc: uniqueRecipients, // BCC to unique emails only
     subject: subject,
     text: body,
     attachments: [
@@ -36,8 +43,8 @@ async function sendEmails(batch, subject, body, resumePath) {
 
   try {
     await transporter.sendMail(mailOptions);
-    sentEmails.push(...bccRecipients); // All recipients are sent to
-    console.log(`Batch email sent to ${bccRecipients.length} recipients`);
+    sentEmails.push(...uniqueRecipients); // All unique recipients are sent to
+    console.log(`Batch email sent to ${uniqueRecipients.length} recipients`);
   } catch (error) {
     console.error(`Failed to send batch email:`, error);
   }

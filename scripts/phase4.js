@@ -1,4 +1,4 @@
-const ExcelJS = require("exceljs");
+const XlsxPopulate = require("xlsx-populate");
 
 /**
  * Phase 4: Update sent status in XLSX file
@@ -10,63 +10,43 @@ async function updateSentStatus(
   openPassword
 ) {
   try {
-    const workbook = new ExcelJS.Workbook();
-
-    // Try to read with password - use editPassword if available, otherwise openPassword
+    // Use openPassword for reading since that's what protects the file
     const readPassword =
-      editPassword && editPassword.trim() !== "" ? editPassword : openPassword;
+      openPassword && openPassword.trim() !== "" ? openPassword : undefined;
 
-    if (readPassword && readPassword.trim() !== "") {
-      try {
-        await workbook.xlsx.readFile(filePath, { password: readPassword });
-        console.log("Successfully opened Excel file for editing with password");
-      } catch (passwordError) {
-        console.log(
-          "Password read failed for editing, trying without password..."
-        );
-        await workbook.xlsx.readFile(filePath);
-        console.log(
-          "Successfully opened Excel file for editing without password"
-        );
-      }
-    } else {
-      await workbook.xlsx.readFile(filePath);
-      console.log("Successfully opened Excel file for editing (no password)");
-    }
+    const workbook = await XlsxPopulate.fromFileAsync(filePath, {
+      password: readPassword,
+    });
 
-    const worksheet = workbook.getWorksheet(1); // First worksheet
-    if (!worksheet) {
-      throw new Error("No worksheets found in the Excel file");
-    }
+    const sheet = workbook.sheet(0); // First worksheet
 
     let updatedCount = 0;
 
-    // Find and update sent_status for sent emails
-    worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber > 1) {
-        // Skip header row
-        const emailCell = row.getCell(1); // Assuming email is in column 1
-        const statusCell = row.getCell(2); // Assuming sent_status is in column 2
+    // Get all rows and update sent_status for sent emails
+    const rows = sheet.usedRange().value();
 
-        // Extract text from cell value if it's an object
-        let emailValue = emailCell.value;
-        if (emailValue && typeof emailValue === "object" && emailValue.text) {
-          emailValue = emailValue.text;
-        }
+    for (let i = 1; i < rows.length; i++) {
+      // Skip header row
+      const row = rows[i];
+      if (row && row.length >= 2) {
+        const emailValue = row[0]; // Column A
 
         if (emailValue && sentEmails.includes(emailValue)) {
-          statusCell.value = "email sent";
+          // Update column B (sent_status) to "email sent"
+          sheet.cell(i + 1, 2).value("email sent"); // Row i+1, Column 2
           updatedCount++;
         }
       }
-    });
+    }
 
     // Save back to file with password protection if provided
-    if (editPassword && editPassword.trim() !== "") {
-      await workbook.xlsx.writeFile(filePath, { password: editPassword });
+    const writePassword =
+      editPassword && editPassword.trim() !== "" ? editPassword : undefined;
+    await workbook.toFileAsync(filePath, { password: writePassword });
+
+    if (writePassword) {
       console.log("Successfully saved Excel file with password protection");
     } else {
-      await workbook.xlsx.writeFile(filePath);
       console.log("Successfully saved Excel file");
     }
 
