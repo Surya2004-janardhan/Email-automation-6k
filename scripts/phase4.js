@@ -1,61 +1,80 @@
-const XlsxPopulate = require("xlsx-populate");
+const { google } = require("googleapis");
+const path = require("path");
 
 /**
- * Phase 4: Update sent status in XLSX file
+ * Phase 4: Update sent status in Google Sheets
  */
-async function updateSentStatus(
-  filePath,
-  sentEmails,
-  editPassword,
-  openPassword
-) {
+async function updateSentStatus(sheetLink, sentEmails) {
   try {
-    // Use openPassword for reading since that's what protects the file
-    const readPassword =
-      openPassword && openPassword.trim() !== "" ? openPassword : undefined;
+    console.log("Updating sent status in Google Sheets...");
 
-    const workbook = await XlsxPopulate.fromFileAsync(filePath, {
-      password: readPassword,
+    // Extract spreadsheet ID from the URL
+    const spreadsheetId = sheetLink.match(/\/d\/([a-zA-Z0-9-_]+)/)[1];
+
+    // Authenticate with service account (needs write access)
+    const auth = new google.auth.GoogleAuth({
+      keyFile: path.join(
+        __dirname,
+        "..",
+        "seismic-rarity-468405-j1-cd12fe29c298.json"
+      ),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
-    const sheet = workbook.sheet(0); // First worksheet
+    const sheets = google.sheets({ version: "v4", auth });
 
+    // First, read the current data to find rows to update
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "Sheet1!A:B",
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      console.log("No data found in the sheet.");
+      return;
+    }
+
+    const updates = [];
     let updatedCount = 0;
 
-    // Get all rows and update sent_status for sent emails
-    const rows = sheet.usedRange().value();
-
+    // Prepare updates for sent emails
     for (let i = 1; i < rows.length; i++) {
-      // Skip header row
       const row = rows[i];
-      if (row && row.length >= 2) {
+      if (row && row.length >= 1) {
         const emailValue = row[0]; // Column A
 
         if (emailValue && sentEmails.includes(emailValue)) {
           // Update column B (sent_status) to "email sent"
-          sheet.cell(i + 1, 2).value("email sent"); // Row i+1, Column 2
+          updates.push({
+            range: `Sheet1!B${i + 1}`, // Row i+1, Column B
+            values: [["email sent"]],
+          });
           updatedCount++;
         }
       }
     }
 
-    // Save back to file with password protection if provided
-    const writePassword =
-      editPassword && editPassword.trim() !== "" ? editPassword : undefined;
-    await workbook.toFileAsync(filePath, { password: writePassword });
+    // Batch update the sheet
+    if (updates.length > 0) {
+      const batchUpdateRequest = {
+        spreadsheetId,
+        resource: {
+          data: updates,
+          valueInputOption: "RAW",
+        },
+      };
 
-    if (writePassword) {
-      console.log("Successfully saved Excel file with password protection");
+      await sheets.spreadsheets.values.batchUpdate(batchUpdateRequest);
+      console.log(
+        `Successfully updated sent status for ${updatedCount} emails in Google Sheets`
+      );
     } else {
-      console.log("Successfully saved Excel file");
+      console.log("No emails to update");
     }
-
-    console.log(`Updated sent status for ${updatedCount} emails`);
   } catch (error) {
-    console.error("❌ Failed to update the Excel file:", error.message);
-    console.error(
-      "Make sure the file is not open in Excel and the path is correct"
-    );
+    console.error("❌ Failed to update Google Sheets:", error.message);
+    console.error("Make sure the service account has edit access to the sheet");
     throw error;
   }
 }

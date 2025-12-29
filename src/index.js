@@ -5,13 +5,10 @@ const { updateSentStatus } = require("../scripts/phase4");
 const path = require("path");
 
 async function main() {
-  const filePath = path.join(__dirname, "..", "data.xlsx");
   const resumePath = path.join(__dirname, "..", "resume.pdf");
 
-  // Load passwords from env
-  const openPassword = process.env.XLSX_OPEN_PASSWORD;
-  const editPassword = process.env.XLSX_EDIT_PASSWORD;
-
+  const sheetLink =
+    "https://docs.google.com/spreadsheets/d/1bPYyC4wrnSfz8swLO2NGgMigfNo1cSwhhTgPud-5QLE/edit?gid=0#gid=0";
   // Subject and body - update as needed
   const subject = "Seeking Opportunity in SDE / Full Stack / AI intern";
   const body = `Hi,
@@ -25,11 +22,7 @@ Surya Janardhan`;
 
   try {
     // Phase 1: Load unsent emails
-    const allUnsentEmails = await loadUnsentEmails(
-      filePath,
-      openPassword,
-      editPassword
-    );
+    const allUnsentEmails = await loadUnsentEmails(sheetLink);
     console.log(`Found ${allUnsentEmails.length} unsent emails`);
 
     // Take only first 50 unsent emails for this run
@@ -53,7 +46,7 @@ Surya Janardhan`;
     const sentEmails = await sendEmails(batch, subject, body, resumePath);
 
     // Phase 4: Update sent status immediately
-    await updateSentStatus(filePath, sentEmails, editPassword, openPassword);
+    await updateSentStatus(sheetLink, sentEmails);
 
     console.log("Batch processed successfully");
   } catch (error) {
