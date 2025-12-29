@@ -1,0 +1,47 @@
+name: Daily Email Campaign
+
+on:
+  schedule:
+    # Run at 8:00 AM and 8:00 PM UTC daily (adjust timezone as needed)
+    - cron: '0 8 * * *'   # 8:00 AM UTC
+    - cron: '0 20 * * *'  # 8:00 PM UTC
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  send-emails:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Create service account JSON file
+      run: |
+        echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}" | base64 -d > seismic-rarity-468405-j1-cd12fe29c298.json
+
+    - name: Create .env file
+      run: |
+        echo "EMAIL_USER=${{ secrets.EMAIL_USER }}" > .env
+        echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> .env
+        echo "XLSX_OPEN_PASSWORD=${{ secrets.XLSX_OPEN_PASSWORD }}" >> .env
+        echo "XLSX_EDIT_PASSWORD=${{ secrets.XLSX_EDIT_PASSWORD }}" >> .env
+
+    - name: Run email campaign
+      run: node src/index.js
+
+    - name: Commit and push any changes (optional)
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "Update sent status after email campaign" || echo "No changes to commit"
+        git push || echo "No changes to push"
