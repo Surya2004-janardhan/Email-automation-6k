@@ -50,7 +50,7 @@ async function updateSentStatus(
 
         // Extract text from cell value if it's an object
         let emailValue = emailCell.value;
-        if (emailValue && typeof emailValue === 'object' && emailValue.text) {
+        if (emailValue && typeof emailValue === "object" && emailValue.text) {
           emailValue = emailValue.text;
         }
 

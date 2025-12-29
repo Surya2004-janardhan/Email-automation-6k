@@ -43,7 +43,7 @@ async function loadUnsentEmails(filePath, openPassword, editPassword) {
           if (headerCell && headerCell.value) {
             // Handle ExcelJS cell values - extract text from objects
             let cellValue = cell.value;
-            if (cellValue && typeof cellValue === 'object' && cellValue.text) {
+            if (cellValue && typeof cellValue === "object" && cellValue.text) {
               cellValue = cellValue.text;
             }
             rowData[headerCell.value] = cellValue;
