@@ -45,8 +45,28 @@ async function sendEmails(batch, subject, body, resumePath) {
     await transporter.sendMail(mailOptions);
     sentEmails.push(...allRecipients); // All recipients are sent to
     console.log(`Batch email sent to ${allRecipients.length} recipients`);
+
+    // sending a conform mail to my primary mail here
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: "chintalajanardhan2004@gmail.com",
+      subject: "✅ 50 mails sent successfully",
+      text: `✅ Successfully sent 50 emails to the following recipients:\n\n${allRecipients.join(
+        "\n"
+      )}\n\nTotal recipients: ${allRecipients.length}`,
+    });
   } catch (error) {
     console.error(`Failed to send batch email:`, error);
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: "chintalajanardhan2004@gmail.com",
+      subject: "❌ Failed to send 50 mails",
+      text: `🚨 Failed to send batch email to the following recipients:\n\n${allRecipients.join(
+        "\n"
+      )}\n\nError: ${
+        error.message
+      }\n\nPlease check your email configuration and try again.`,
+    });
   }
 
   return sentEmails;
