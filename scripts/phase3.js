@@ -50,8 +50,10 @@ async function sendEmails(batch, subject, body, resumePath) {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: "chintalajanardhan2004@gmail.com",
-      subject: "✅ 100 mails sent successfully",
-      text: `✅ Successfully sent 100 emails to the following recipients:\n\n${allRecipients.join(
+      subject: "✅ 50
+ mails sent successfully",
+      text: `✅ Successfully sent 50
+ emails to the following recipients:\n\n${allRecipients.join(
         "\n"
       )}\n\nTotal recipients: ${allRecipients.length}`,
     });
@@ -60,7 +62,8 @@ async function sendEmails(batch, subject, body, resumePath) {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: "chintalajanardhan2004@gmail.com",
-      subject: "❌ Failed to send 100 mails",
+      subject: "❌ Failed to send 50
+ mails",
       text: `🚨 Failed to send batch email to the following recipients:\n\n${allRecipients.join(
         "\n"
       )}\n\nError: ${
