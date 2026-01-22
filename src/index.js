@@ -29,8 +29,8 @@ Surya Janardhan`;
     const allUnsentEmails = await loadUnsentEmails(sheetLink);
     console.log(`Found ${allUnsentEmails.length} unsent emails`);
 
-    // Take only first 50 unsent emails for this run
-    const unsentEmails = allUnsentEmails.slice(0, 50);
+    // Take only first 30 unsent emails for this run
+    const unsentEmails = allUnsentEmails.slice(0, 30);
     console.log(`Processing ${unsentEmails.length} emails this run`);
 
     if (unsentEmails.length === 0) {
@@ -55,7 +55,7 @@ Surya Janardhan`;
       const body = bodies[i] || baseBody;
       
       console.log(`\n Processing batch ${i + 1}/${Math.min(batches.length, 5)} (${batch.length} emails)`);
-      console.log(`   Subject: "${subject.substring(0, 50)}..."`);
+      console.log(`   Subject: "${subject.substring(0, 30)}..."`);
 
       // Phase 3: Send emails for this batch
       const sentEmails = await sendEmails(batch, subject, body, resumeLink);
