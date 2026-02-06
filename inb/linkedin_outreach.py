@@ -24,6 +24,16 @@ from selenium.webdriver.chrome.options import Options
 # ============== CONFIGURATION ==============
 DAILY_LIMIT = 25  # Safe limit for connection requests with messages
 QUOTA_FILE = 'linkedin_quota.json'
+
+# Hardcoded resume link and message
+RESUME_LINK = "https://drive.google.com/file/d/14pEaC7-svetAUzXRZYsnM09cW3VzH2r2/view"
+DEFAULT_MESSAGE = f"""Hi! I'm Surya, a passionate Software Engineer with expertise in Full Stack, AI/ML, and LLMs.
+
+I'm actively looking for SDE/Intern roles and would love to connect! If there are any openings, I'd really appreciate a referral.
+
+Resume: {RESUME_LINK}
+
+Thank you! 🙏"""
 # ===========================================
 
 
@@ -367,17 +377,11 @@ def main():
     if effective_limit < args.limit:
         print(f"⚠️ Limiting to {effective_limit} due to daily quota")
     
-    # Build message
+    # Build message - use hardcoded default
     if not args.message:
-        resume_text = f" Resume: {args.resume}" if args.resume else ""
-        args.message = (
-            f"Hi! I'm a passionate engineer looking for SDE/Full Stack/AI roles. "
-            f"Would love to connect and explore opportunities.{resume_text}"
-        )
-    elif args.resume and args.resume not in args.message:
-        args.message = f"{args.message} {args.resume}"
+        args.message = DEFAULT_MESSAGE
     
-    # Trim to 300 chars
+    # Trim to 300 chars (LinkedIn limit)
     if len(args.message) > 300:
         args.message = args.message[:297] + "..."
     

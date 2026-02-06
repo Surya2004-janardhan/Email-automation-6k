@@ -51,7 +51,6 @@ jobs:
             --cookie "${{ secrets.LINKEDIN_COOKIE }}" \
             --excel "linkedin-data.xlsx" \
             --limit ${{ github.event.inputs.limit || '20' }} \
-            --resume "https://drive.google.com/file/d/14pEaC7-svetAUzXRZYsnM09cW3VzH2r2/view" \
             --headless 2>&1 | tee linkedin_output.txt
         env:
           LINKEDIN_COOKIE: ${{ secrets.LINKEDIN_COOKIE }}
