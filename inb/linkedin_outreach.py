@@ -215,7 +215,11 @@ def send_direct_message(driver, public_id, message, debug=False):
     except Exception as e:
         return f'page_load_error: {str(e)[:50]}'
     
+<<<<<<< HEAD
     time.sleep(random.uniform(4, 6))
+=======
+    time.sleep(random.uniform(5, 7))  # Increased wait for page load
+>>>>>>> 16535ebd49cf73db5da8ef39ece4e301b3c42490
     
     # DEBUG: Check page state
     if debug:
@@ -232,14 +236,24 @@ def send_direct_message(driver, public_id, message, debug=False):
             print(f"  [DEBUG] Page appears blocked, waiting...")
         time.sleep(4)
         driver.refresh()
-        time.sleep(4)
+        time.sleep(5)
     
-    # Scroll to load content
+    # Scroll to load content - more comprehensive
     try:
+<<<<<<< HEAD
         driver.execute_script("window.scrollBy(0, 200)")
+=======
+        # Scroll down to load lazy content
+        driver.execute_script("window.scrollTo(0, 300)")
+        time.sleep(1)
+        driver.execute_script("window.scrollTo(0, 600)")
+        time.sleep(1)
+        # Scroll back up to top section with action buttons
+        driver.execute_script("window.scrollTo(0, 200)")
+        time.sleep(1.5)
+>>>>>>> 16535ebd49cf73db5da8ef39ece4e301b3c42490
     except:
         pass
-    time.sleep(1.5)
     
     try:
         # DEBUG: List all buttons on page
@@ -251,29 +265,81 @@ def send_direct_message(driver, public_id, message, debug=False):
                 aria = (btn.get_attribute('aria-label') or '')[:40]
                 print(f"    - Text: '{txt}' | Aria: '{aria}'")
         
+<<<<<<< HEAD
         # Find Message button
         msg_button = None
         
         # Method 1: Message button with span text
         buttons = driver.find_elements(By.XPATH, '//button[.//span[text()="Message"]]')
+=======
+        # Check if already connected first
+        if driver.find_elements(By.XPATH, '//button[.//span[text()="Message"]]'):
+            return 'already_connected'
+        if driver.find_elements(By.XPATH, '//button[contains(@aria-label, "Pending")]'):
+            return 'pending'
+        if driver.find_elements(By.XPATH, '//button[.//span[text()="Pending"]]'):
+            return 'pending'
+        
+        # Method 1: Direct Connect button with aria-label containing "Invite"
+        buttons = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "Invite") and contains(@aria-label, "connect")]')
+>>>>>>> 16535ebd49cf73db5da8ef39ece4e301b3c42490
         if buttons:
             msg_button = buttons[0]
         
+<<<<<<< HEAD
         # Method 2: aria-label containing "message"
         if not msg_button:
             buttons = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "message") or contains(@aria-label, "Message")]')
+=======
+        # Method 2: Button with specific aria-label patterns
+        if not connect_button:
+            buttons = driver.find_elements(By.CSS_SELECTOR, 'button[aria-label*="Invite"][aria-label*="to connect"]')
+            if buttons:
+                connect_button = buttons[0]
+        
+        # Method 3: Connect button with exact span text
+        if not connect_button:
+            buttons = driver.find_elements(By.XPATH, '//button[.//span[text()="Connect"]]')
+>>>>>>> 16535ebd49cf73db5da8ef39ece4e301b3c42490
             if buttons:
                 msg_button = buttons[0]
         
+<<<<<<< HEAD
         # Method 3: Check More menu for Message option
         if not msg_button:
             more_buttons = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "More")]')
+=======
+        # Method 4: pvs-profile-actions class based selector (2024 LinkedIn UI)
+        if not connect_button:
+            buttons = driver.find_elements(By.CSS_SELECTOR, 'div.pvs-profile-actions button.pvs-profile-actions__action')
+            for btn in buttons:
+                aria_label = (btn.get_attribute('aria-label') or '').lower()
+                btn_text = btn.text.lower()
+                if 'connect' in aria_label or 'invite' in aria_label or 'connect' in btn_text:
+                    connect_button = btn
+                    break
+        
+        # Method 5: artdeco button with Connect text
+        if not connect_button:
+            buttons = driver.find_elements(By.CSS_SELECTOR, 'button.artdeco-button--secondary')
+            for btn in buttons:
+                if 'connect' in btn.text.lower():
+                    connect_button = btn
+                    break
+        
+        # Method 6: Check More menu dropdown (newer LinkedIn UI)
+        if not connect_button:
+            more_buttons = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "More actions")]')
+            if not more_buttons:
+                more_buttons = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "More")]')
+>>>>>>> 16535ebd49cf73db5da8ef39ece4e301b3c42490
             if not more_buttons:
                 more_buttons = driver.find_elements(By.XPATH, '//button[.//span[text()="More"]]')
             
             if more_buttons:
                 try:
                     driver.execute_script("arguments[0].click();", more_buttons[0])
+<<<<<<< HEAD
                     time.sleep(1)
                     menu_msg = driver.find_elements(By.XPATH, '//*[contains(@class, "dropdown")]//*[text()="Message"]/ancestor::*[1]')
                     if menu_msg:
@@ -289,6 +355,38 @@ def send_direct_message(driver, public_id, message, debug=False):
             if connect_btns:
                 return 'not_connected'
             return 'no_message_button'
+=======
+                    time.sleep(2)
+                    
+                    # Find Connect in dropdown menu (updated selectors)
+                    menu_connect = driver.find_elements(By.XPATH, '//div[contains(@class, "artdeco-dropdown__content")]//span[text()="Connect"]/ancestor::div[@role="button"]')
+                    if not menu_connect:
+                        menu_connect = driver.find_elements(By.XPATH, '//div[contains(@class, "artdeco-dropdown__content")]//div[contains(text(), "Connect")]')
+                    if not menu_connect:
+                        menu_connect = driver.find_elements(By.XPATH, '//ul[@role="menu"]//li[contains(., "Connect")]')
+                    
+                    if menu_connect:
+                        driver.execute_script("arguments[0].click();", menu_connect[0])
+                        time.sleep(1.5)
+                        return _handle_connect_modal(driver, message)
+                except Exception as e:
+                    if debug:
+                        print(f"  [DEBUG] More menu error: {str(e)[:50]}")
+                    pass  # Close dropdown and continue
+        
+        # Method 7: Generic button search with Connect
+        if not connect_button:
+            buttons = driver.find_elements(By.TAG_NAME, 'button')
+            for btn in buttons:
+                aria_label = (btn.get_attribute('aria-label') or '').lower()
+                btn_text = btn.text.lower()
+                if 'invite' in aria_label and 'connect' in aria_label:
+                    connect_button = btn
+                    break
+                elif btn_text == 'connect':
+                    connect_button = btn
+                    break
+>>>>>>> 16535ebd49cf73db5da8ef39ece4e301b3c42490
         
         # Click Message button
         try:
@@ -308,6 +406,7 @@ def send_direct_message(driver, public_id, message, debug=False):
 def _send_message_in_modal(driver, message):
     """Type and send message in the message modal/composer."""
     try:
+<<<<<<< HEAD
         time.sleep(1)
         
         # Find the message input area
@@ -352,6 +451,59 @@ def _send_message_in_modal(driver, message):
         send_btns = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "Send")]')
         if send_btns:
             send_btn = send_btns[0]
+=======
+        time.sleep(2)  # Increased wait for modal to fully load
+        
+        # Look for "Add a note" button - multiple patterns (2024 LinkedIn UI)
+        add_note_btns = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "Add a note")]')
+        if not add_note_btns:
+            add_note_btns = driver.find_elements(By.CSS_SELECTOR, 'button[aria-label*="note"]')
+        if not add_note_btns:
+            add_note_btns = driver.find_elements(By.XPATH, '//button[.//span[text()="Add a note"]]')
+        if not add_note_btns:
+            add_note_btns = driver.find_elements(By.XPATH, '//button[contains(., "Add a note")]')
+        
+        if add_note_btns and message:
+            driver.execute_script("arguments[0].click();", add_note_btns[0])
+            time.sleep(1.5)
+            
+            # Find textarea - multiple patterns
+            textareas = driver.find_elements(By.CSS_SELECTOR, 'textarea[name="message"]')
+            if not textareas:
+                textareas = driver.find_elements(By.XPATH, '//textarea[contains(@name, "message")]')
+            if not textareas:
+                textareas = driver.find_elements(By.CSS_SELECTOR, 'textarea#custom-message')
+            if not textareas:
+                textareas = driver.find_elements(By.XPATH, '//textarea[contains(@id, "custom-message")]')
+            if not textareas:
+                textareas = driver.find_elements(By.TAG_NAME, 'textarea')
+            
+            if textareas:
+                textareas[0].clear()
+                textareas[0].send_keys(message[:300])  # LinkedIn limit
+                time.sleep(0.8)
+        
+        # Find and click Send - multiple patterns (2024 LinkedIn UI)
+        send_btns = driver.find_elements(By.CSS_SELECTOR, 'button[aria-label*="Send"][aria-label*="invitation"]')
+        if not send_btns:
+            send_btns = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "Send") and contains(@aria-label, "invitation")]')
+        if not send_btns:
+            send_btns = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "Send")]')
+        if not send_btns:
+            send_btns = driver.find_elements(By.XPATH, '//button[.//span[text()="Send"]]')
+        if not send_btns:
+            send_btns = driver.find_elements(By.XPATH, '//button[.//span[text()="Send now"]]')
+        if not send_btns:
+            send_btns = driver.find_elements(By.XPATH, '//button[.//span[text()="Send invitation"]]')
+        if not send_btns:
+            # Fallback to primary button in modal
+            send_btns = driver.find_elements(By.CSS_SELECTOR, 'div[role="dialog"] button.artdeco-button--primary')
+        
+        if send_btns:
+            driver.execute_script("arguments[0].click();", send_btns[0])
+            time.sleep(1.5)
+            return 'sent'
+>>>>>>> 16535ebd49cf73db5da8ef39ece4e301b3c42490
         
         # Method 2: Send button text
         if not send_btn:
@@ -374,6 +526,17 @@ def _send_message_in_modal(driver, message):
         return 'sent'
         
     except Exception as e:
+<<<<<<< HEAD
+=======
+        try:
+            dismiss = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "Dismiss")]')
+            if not dismiss:
+                dismiss = driver.find_elements(By.CSS_SELECTOR, 'button[aria-label*="Dismiss"]')
+            if dismiss:
+                dismiss[0].click()
+        except:
+            pass
+>>>>>>> 16535ebd49cf73db5da8ef39ece4e301b3c42490
         return f'modal_error: {str(e)[:50]}'
 
 
