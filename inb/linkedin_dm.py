@@ -375,7 +375,7 @@ def main():
     parser.add_argument('--password', help='LinkedIn password (fallback)')
     parser.add_argument('--excel', default='linkedin-data.xlsx', help='Excel file with profiles')
     parser.add_argument('--limit', type=int, default=10, help='Max messages to send (respects daily limit)')
-    parser.add_argument('--resume', default='https://drive.google.com/file/d/1Bw0UtizbUNnalbpaHovDP6nJ6cyZwLtA/view?usp=drivesdk', help='Resume link')
+    parser.add_argument('--resume', default='https://drive.google.com/file/d/1q45pza2gyP6Pf7z4kyQv2yvOY2KZtCZl/view?usp=sharing', help='Resume link')
     parser.add_argument('--headless', action='store_true', help='Run headless')
     parser.add_argument('--mode', choices=['dm', 'connect', 'both'], default='dm', 
                         help='dm=message only, connect=connection only, both=try dm first then connect')
