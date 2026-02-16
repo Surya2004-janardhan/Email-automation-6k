@@ -7,7 +7,7 @@ const { generateEmailVariants } = require("../scripts/llm");
 async function main() {
   // Google Drive resume link instead of file attachment
   const resumeLink =
-    "https://drive.google.com/file/d/14pEaC7-svetAUzXRZYsnM09cW3VzH2r2/view?usp=sharing ";
+    "https://drive.google.com/file/d/1Bw0UtizbUNnalbpaHovDP6nJ6cyZwLtA/view?usp=drivesdk";
   const sheetLink =
     "https://docs.google.com/spreadsheets/d/1bKIeZoQMOmIw9Te_zMSafZOYqUsF3s2MBAqgl7Vjnds/edit?gid=0#gid=0";
 

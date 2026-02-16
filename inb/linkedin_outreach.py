@@ -27,7 +27,7 @@ DAILY_LIMIT = 25  # Safe limit for messages
 QUOTA_FILE = 'linkedin_quota.json'
 
 # Hardcoded resume link and message
-RESUME_LINK = "https://drive.google.com/file/d/14pEaC7-svetAUzXRZYsnM09cW3VzH2r2/view"
+RESUME_LINK = "https://drive.google.com/file/d/1Bw0UtizbUNnalbpaHovDP6nJ6cyZwLtA/view?usp=drivesdk"
 DEFAULT_MESSAGE = f"""Hi! I'm Surya, a passionate Software Engineer with expertise in Full Stack, AI/ML, and LLMs.
 
 I'm actively looking for SDE/Intern roles and would love to connect! If there are any openings, I'd really appreciate a referral.
