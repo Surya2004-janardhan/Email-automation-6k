@@ -1,0 +1,509 @@
+const path = require("path");
+const { google } = require("googleapis");
+const nodemailer = require("nodemailer");
+require("dotenv").config();
+
+const SHEET_LINK =
+  process.env.JOB_SHEET_LINK ||
+  "https://docs.google.com/spreadsheets/d/1DvNSIB_M9yMx6u3Fh2wzdzRpZ_toJmaIwfrelnwP6Ts/edit?gid=0#gid=0";
+const TARGET_JOBS = Number(process.env.TARGET_JOBS || 10);
+const MAX_RUN_MINUTES = Number(process.env.MAX_RUN_MINUTES || 120);
+const DRY_RUN = process.env.JOB_HUNTER_DRY_RUN === "1";
+const RECIPIENT = "chintalajanardhan2004@gmail.com";
+
+const REQUIRED_HEADERS = [
+  "Domains",
+  "Valid Domain",
+  "scrapped at",
+  "Total found jobs count",
+  "Alligned jobs count",
+  "Email sent with links",
+];
+
+const RESUME_KEYWORDS = [
+  "software engineer",
+  "software developer",
+  "sde",
+  "backend",
+  "full stack",
+  "node",
+  "react",
+  "javascript",
+  "typescript",
+  "python",
+  "java",
+  "ai",
+  "ml",
+  "machine learning",
+  "deep learning",
+  "llm",
+  "rag",
+  "langchain",
+  "langgraph",
+  "api",
+  "intern",
+];
+
+const FRESHER_POSITIVE = [
+  "fresher",
+  "freshers",
+  "entry level",
+  "entry-level",
+  "graduate",
+  "new grad",
+  "intern",
+  "internship",
+  "trainee",
+  "associate",
+  "junior",
+  "0-1 years",
+  "0-2 years",
+  "0 to 1 years",
+  "0 to 2 years",
+  "1 year",
+  "2 years",
+];
+
+const SENIOR_NEGATIVE = [
+  "senior",
+  "staff",
+  "lead",
+  "principal",
+  "architect",
+  "manager",
+  "director",
+  "vp",
+  "head of",
+  "8+ years",
+  "7+ years",
+  "6+ years",
+  "5+ years",
+  "4+ years",
+  "3+ years",
+];
+
+function extractSpreadsheetId(link) {
+  const match = link.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (!match) throw new Error("Invalid Google Sheet link");
+  return match[1];
+}
+
+function getAuth() {
+  return new google.auth.GoogleAuth({
+    keyFile: path.join(
+      __dirname,
+      "..",
+      "seismic-rarity-468405-j1-cd12fe29c298.json",
+    ),
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
+}
+
+async function getSheetsClient() {
+  const auth = getAuth();
+  return google.sheets({ version: "v4", auth });
+}
+
+async function getFirstSheetTitle(sheets, spreadsheetId) {
+  const info = await sheets.spreadsheets.get({ spreadsheetId });
+  const title = info.data.sheets?.[0]?.properties?.title;
+  if (!title) throw new Error("No sheet tab found");
+  return title;
+}
+
+async function ensureHeaders(sheets, spreadsheetId, sheetTitle) {
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${sheetTitle}!A1:F1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [REQUIRED_HEADERS] },
+  });
+}
+
+async function loadDomainRows(sheets, spreadsheetId, sheetTitle) {
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${sheetTitle}!A2:F`,
+  });
+  const rows = res.data.values || [];
+  return rows
+    .map((row, idx) => ({
+      rowNumber: idx + 2,
+      domain: (row[0] || "").trim(),
+    }))
+    .filter((r) => r.domain.length > 0);
+}
+
+async function fetchWithTimeout(url, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 JobBot/1.0",
+      },
+      redirect: "follow",
+    });
+    return res;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function normalizeDomain(domain) {
+  const trimmed = domain.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+  return trimmed.toLowerCase();
+}
+
+function normalizeUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    u.hash = "";
+    u.search = "";
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
+function stripHtml(input) {
+  return input
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractLinks(html, baseUrl) {
+  const links = [];
+  const regex = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = regex.exec(html)) !== null) {
+    const href = m[1].trim();
+    const text = stripHtml(m[2] || "").slice(0, 200);
+    if (!href || href.startsWith("javascript:") || href.startsWith("mailto:")) {
+      continue;
+    }
+    try {
+      links.push({ url: new URL(href, baseUrl).toString(), text });
+    } catch {}
+  }
+  return links;
+}
+
+function looksLikeJobUrl(url, text = "") {
+  const hay = `${url} ${text}`.toLowerCase();
+  const include = [
+    "job",
+    "career",
+    "opening",
+    "vacanc",
+    "position",
+    "workdayjobs",
+    "greenhouse",
+    "lever.co",
+    "smartrecruiters",
+    "ashby",
+    "job-",
+    "intern",
+    "software-engineer",
+    "developer",
+  ];
+  return include.some((x) => hay.includes(x));
+}
+
+function scoreAlignment(text) {
+  const lc = text.toLowerCase();
+  let score = 0;
+  for (const k of RESUME_KEYWORDS) {
+    if (lc.includes(k)) score += 1;
+  }
+  return score;
+}
+
+function classifyRoleType(text) {
+  const lc = text.toLowerCase();
+  if (/\bintern(ship)?\b/.test(lc)) return "internship";
+  if (
+    /\bfull[-\s]?time\b/.test(lc) ||
+    /\bsoftware engineer\b/.test(lc) ||
+    /\bdeveloper\b/.test(lc) ||
+    /\bsde\b/.test(lc)
+  ) {
+    return "fte";
+  }
+  return "unknown";
+}
+
+function isFresherFriendly(text) {
+  const lc = text.toLowerCase();
+  if (SENIOR_NEGATIVE.some((k) => lc.includes(k))) return false;
+  if (FRESHER_POSITIVE.some((k) => lc.includes(k))) return true;
+  const yearsMatch = lc.match(/(\d+)\s*\+?\s*(year|years|yr|yrs)/);
+  if (yearsMatch) {
+    const years = Number(yearsMatch[1]);
+    return Number.isFinite(years) && years <= 2;
+  }
+  return false;
+}
+
+function extractTitle(html) {
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  return titleMatch ? stripHtml(titleMatch[1]).slice(0, 140) : "";
+}
+
+async function scrapeDomain(domain) {
+  const cleanDomain = normalizeDomain(domain);
+  const seedUrls = [
+    `https://${cleanDomain}/careers`,
+    `https://${cleanDomain}/career`,
+    `https://${cleanDomain}/jobs`,
+    `https://${cleanDomain}`,
+  ];
+
+  const queue = [...seedUrls];
+  const visited = new Set();
+  const candidates = new Map();
+
+  while (queue.length > 0 && visited.size < 40) {
+    const url = queue.shift();
+    const n = normalizeUrl(url);
+    if (!n || visited.has(n)) continue;
+    visited.add(n);
+
+    let res;
+    try {
+      res = await fetchWithTimeout(url, 10000);
+    } catch {
+      continue;
+    }
+
+    if (!res.ok) continue;
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("text/html")) continue;
+
+    let html = "";
+    try {
+      html = await res.text();
+    } catch {
+      continue;
+    }
+
+    const pageTitle = extractTitle(html);
+    const links = extractLinks(html, res.url);
+
+    for (const link of links) {
+      const norm = normalizeUrl(link.url);
+      if (!norm) continue;
+      const sameRoot =
+        norm.includes(cleanDomain) ||
+        /workdayjobs|greenhouse|lever\.co|smartrecruiters|ashby/i.test(norm);
+
+      if (!sameRoot) continue;
+
+      if (looksLikeJobUrl(norm, link.text)) {
+        const key = norm;
+        if (!candidates.has(key)) {
+          candidates.set(key, {
+            url: norm,
+            title: link.text || pageTitle || "Job Opening",
+            sourcePage: n,
+          });
+        }
+      }
+
+      if (
+        queue.length < 120 &&
+        !visited.has(norm) &&
+        looksLikeJobUrl(norm, link.text)
+      ) {
+        queue.push(norm);
+      }
+    }
+  }
+
+  const enriched = [];
+  for (const item of candidates.values()) {
+    let jobHtml = "";
+    let title = item.title;
+    let snippet = "";
+    try {
+      const jobRes = await fetchWithTimeout(item.url, 9000);
+      if (jobRes.ok && (jobRes.headers.get("content-type") || "").includes("html")) {
+        jobHtml = await jobRes.text();
+        title = extractTitle(jobHtml) || title;
+        snippet = stripHtml(jobHtml).slice(0, 900);
+      }
+    } catch {}
+
+    enriched.push({
+      ...item,
+      title: title || "Job Opening",
+      snippet,
+      score: scoreAlignment(`${title} ${snippet}`),
+      roleType: classifyRoleType(`${title} ${snippet}`),
+      fresherFriendly: isFresherFriendly(`${title} ${snippet}`),
+    });
+  }
+
+  const aligned = enriched
+    .filter((j) => j.score >= 2 && j.fresherFriendly)
+    .sort((a, b) => b.score - a.score);
+
+  return {
+    validDomain: visited.size > 0,
+    totalFound: enriched.length,
+    aligned,
+  };
+}
+
+function oneLine(job) {
+  return `${job.title.replace(/\s+/g, " ").trim()} [${job.roleType}] (match score: ${job.score})`;
+}
+
+async function updateDomainRow(sheets, spreadsheetId, sheetTitle, rowNumber, row) {
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${sheetTitle}!B${rowNumber}:F${rowNumber}`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [
+        [
+          row.validDomain ? "yes" : "no",
+          row.scrappedAt,
+          String(row.totalFound),
+          String(row.alignedCount),
+          row.emailSent,
+        ],
+      ],
+    },
+  });
+}
+
+async function sendJobsEmail(jobs) {
+  if (DRY_RUN) {
+    console.log("DRY RUN: skipping job email send");
+    return false;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const lines = jobs.map(
+    (job, i) => `${i + 1}. ${oneLine(job)}\n${job.url}\nCompany domain: ${job.domain}`,
+  );
+  const subject = `Daily Job Hunt: ${jobs.length} resume-aligned jobs`;
+  const body = `Found ${jobs.length} unique resume-aligned jobs.\n\n${lines.join(
+    "\n\n",
+  )}\n\nGenerated at: ${new Date().toISOString()}`;
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: RECIPIENT,
+    subject,
+    text: body,
+  });
+  return true;
+}
+
+async function run() {
+  const started = Date.now();
+  const sheets = await getSheetsClient();
+  const spreadsheetId = extractSpreadsheetId(SHEET_LINK);
+  const sheetTitle = await getFirstSheetTitle(sheets, spreadsheetId);
+
+  await ensureHeaders(sheets, spreadsheetId, sheetTitle);
+  const domains = await loadDomainRows(sheets, spreadsheetId, sheetTitle);
+  if (domains.length === 0) {
+    throw new Error("No domains found in sheet column A");
+  }
+
+  const selected = new Map();
+  const domainStats = new Map();
+
+  while (
+    selected.size < TARGET_JOBS &&
+    Date.now() - started < MAX_RUN_MINUTES * 60 * 1000
+  ) {
+    let madeProgress = false;
+    for (const domainRow of domains) {
+      if (selected.size >= TARGET_JOBS) break;
+      const domain = normalizeDomain(domainRow.domain);
+      const now = new Date().toISOString();
+
+      let result;
+      try {
+        result = await scrapeDomain(domain);
+      } catch {
+        result = { validDomain: false, totalFound: 0, aligned: [] };
+      }
+
+      domainStats.set(domainRow.rowNumber, {
+        validDomain: result.validDomain,
+        scrappedAt: now,
+        totalFound: result.totalFound,
+        alignedCount: result.aligned.length,
+        emailSent: "no",
+      });
+
+      for (const job of result.aligned) {
+        if (selected.size >= TARGET_JOBS) break;
+        if (!selected.has(job.url)) {
+          selected.set(job.url, { ...job, domain });
+          madeProgress = true;
+        }
+      }
+
+      await updateDomainRow(
+        sheets,
+        spreadsheetId,
+        sheetTitle,
+        domainRow.rowNumber,
+        domainStats.get(domainRow.rowNumber),
+      );
+    }
+
+    if (!madeProgress) {
+      await new Promise((resolve) => setTimeout(resolve, 60000));
+    }
+  }
+
+  const pickedJobs = Array.from(selected.values()).slice(0, TARGET_JOBS);
+  const sent =
+    pickedJobs.length === TARGET_JOBS ? await sendJobsEmail(pickedJobs) : false;
+
+  for (const domainRow of domains) {
+    const prev = domainStats.get(domainRow.rowNumber);
+    if (!prev) continue;
+    const patch = {
+      ...prev,
+      emailSent: sent
+        ? `yes (${new Date().toISOString()})`
+        : `no (${pickedJobs.length}/${TARGET_JOBS})`,
+    };
+    await updateDomainRow(
+      sheets,
+      spreadsheetId,
+      sheetTitle,
+      domainRow.rowNumber,
+      patch,
+    );
+  }
+
+  console.log(
+    `Completed run. collected=${pickedJobs.length}, target=${TARGET_JOBS}, emailSent=${sent}`,
+  );
+}
+
+run().catch((err) => {
+  console.error("daily-job-hunter failed:", err.message);
+  process.exit(1);
+});

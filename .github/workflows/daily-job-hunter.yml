@@ -1,0 +1,42 @@
+name: Daily Job Hunter (10 Aligned Jobs)
+
+on:
+  schedule:
+    # 5:00 AM IST = 11:30 PM UTC previous day
+    - cron: "30 23 * * *"
+  workflow_dispatch:
+
+jobs:
+  job-hunter:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create service account JSON file
+        run: |
+          cat > seismic-rarity-468405-j1-cd12fe29c298.json << 'EOF'
+          ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          EOF
+
+      - name: Create .env file
+        run: |
+          echo "EMAIL_USER=${{ secrets.EMAIL_USER }}" > .env
+          echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> .env
+          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> .env
+          echo "JOB_SHEET_LINK=https://docs.google.com/spreadsheets/d/1DvNSIB_M9yMx6u3Fh2wzdzRpZ_toJmaIwfrelnwP6Ts/edit?gid=0#gid=0" >> .env
+          echo "TARGET_JOBS=10" >> .env
+          echo "MAX_RUN_MINUTES=120" >> .env
+
+      - name: Run daily job hunter
+        run: node daily-job-hunter/index.js
