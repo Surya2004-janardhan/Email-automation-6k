@@ -44,6 +44,35 @@ const RESUME_KEYWORDS = [
   "intern",
 ];
 
+const STACK_REQUIRED = [
+  "software engineer",
+  "software developer",
+  "sde",
+  "backend",
+  "full stack",
+  "node",
+  "node.js",
+  "react",
+  "javascript",
+  "typescript",
+  "python",
+  "java",
+  "api",
+  "ai",
+  "ml",
+  "llm",
+];
+
+const STACK_EXCLUDED = [
+  ".net",
+  "dotnet",
+  "asp.net",
+  "c#",
+  "azure devops engineer",
+  "sharepoint",
+  "dynamics 365",
+];
+
 const FRESHER_POSITIVE = [
   "fresher",
   "freshers",
@@ -80,6 +109,41 @@ const SENIOR_NEGATIVE = [
   "5+ years",
   "4+ years",
   "3+ years",
+];
+
+const INDIA_POSITIVE = [
+  "india",
+  "bengaluru",
+  "bangalore",
+  "hyderabad",
+  "pune",
+  "chennai",
+  "gurgaon",
+  "gurugram",
+  "noida",
+  "mumbai",
+  "delhi",
+  "kolkata",
+  "ahmedabad",
+  "coimbatore",
+  "kochi",
+  "remote india",
+  "work from india",
+  "wfh india",
+];
+
+const NON_INDIA_NEGATIVE = [
+  "united states",
+  "usa",
+  "canada",
+  "europe",
+  "uk",
+  "australia",
+  "singapore",
+  "germany",
+  "only us",
+  "us only",
+  "eu only",
 ];
 
 function extractSpreadsheetId(link) {
@@ -238,6 +302,48 @@ function classifyRoleType(text) {
   return "unknown";
 }
 
+function isTechAligned(text) {
+  const lc = text.toLowerCase();
+  if (STACK_EXCLUDED.some((k) => lc.includes(k))) return false;
+  return STACK_REQUIRED.some((k) => lc.includes(k));
+}
+
+function getLocationEligibility(text) {
+  const lc = text.toLowerCase();
+  const hasIndia = INDIA_POSITIVE.some((k) => lc.includes(k));
+  const hasNonIndia = NON_INDIA_NEGATIVE.some((k) => lc.includes(k));
+  const hasRemote = /\bremote\b/.test(lc);
+  const indiaEligible = hasIndia || (hasRemote && lc.includes("india"));
+  if (!indiaEligible) return { indiaEligible: false, locationTag: "non-india/unknown" };
+  if (hasNonIndia && !hasIndia) {
+    return { indiaEligible: false, locationTag: "non-india" };
+  }
+  if (hasRemote) return { indiaEligible: true, locationTag: "remote-india" };
+  return { indiaEligible: true, locationTag: "india-onsite/hybrid" };
+}
+
+function findFinalApplyUrl(html, baseUrl) {
+  const links = extractLinks(html || "", baseUrl);
+  const applySignals = [
+    "apply",
+    "apply now",
+    "submit application",
+    "job details",
+    "view job",
+    "start application",
+  ];
+  for (const l of links) {
+    const hay = `${l.url} ${l.text}`.toLowerCase();
+    if (applySignals.some((s) => hay.includes(s))) {
+      const normalized = normalizeUrl(l.url);
+      if (normalized) return normalized;
+    }
+  }
+  const fallback = normalizeUrl(baseUrl);
+  if (fallback && looksLikeJobUrl(fallback, "")) return fallback;
+  return null;
+}
+
 function isFresherFriendly(text) {
   const lc = text.toLowerCase();
   if (SENIOR_NEGATIVE.some((k) => lc.includes(k))) return false;
@@ -346,11 +452,22 @@ async function scrapeDomain(domain) {
       score: scoreAlignment(`${title} ${snippet}`),
       roleType: classifyRoleType(`${title} ${snippet}`),
       fresherFriendly: isFresherFriendly(`${title} ${snippet}`),
+      techAligned: isTechAligned(`${title} ${snippet}`),
+      ...getLocationEligibility(`${title} ${snippet} ${item.url}`),
+      finalApplyUrl: findFinalApplyUrl(jobHtml, item.url),
     });
   }
 
   const aligned = enriched
-    .filter((j) => j.score >= 2 && j.fresherFriendly)
+    .filter(
+      (j) =>
+        j.score >= 2 &&
+        j.fresherFriendly &&
+        j.techAligned &&
+        j.indiaEligible &&
+        (j.roleType === "internship" || j.roleType === "fte") &&
+        !!j.finalApplyUrl,
+    )
     .sort((a, b) => b.score - a.score);
 
   return {
@@ -361,7 +478,7 @@ async function scrapeDomain(domain) {
 }
 
 function oneLine(job) {
-  return `${job.title.replace(/\s+/g, " ").trim()} [${job.roleType}] (match score: ${job.score})`;
+  return `${job.title.replace(/\s+/g, " ").trim()} [${job.roleType}] [${job.locationTag}] (match score: ${job.score})`;
 }
 
 async function updateDomainRow(sheets, spreadsheetId, sheetTitle, rowNumber, row) {
@@ -398,10 +515,11 @@ async function sendJobsEmail(jobs) {
   });
 
   const lines = jobs.map(
-    (job, i) => `${i + 1}. ${oneLine(job)}\n${job.url}\nCompany domain: ${job.domain}`,
+    (job, i) =>
+      `${i + 1}. ${oneLine(job)}\nType: ${job.roleType}\nFinal Apply Link: ${job.finalApplyUrl}\nCompany domain: ${job.domain}`,
   );
-  const subject = `Daily Job Hunt: ${jobs.length} resume-aligned jobs`;
-  const body = `Found ${jobs.length} unique resume-aligned jobs.\n\n${lines.join(
+  const subject = `Daily Job Hunt India: ${jobs.length} aligned internship/job links`;
+  const body = `Found ${jobs.length} unique India-eligible resume-aligned roles.\nOnly final apply links are included.\n\n${lines.join(
     "\n\n",
   )}\n\nGenerated at: ${new Date().toISOString()}`;
 
