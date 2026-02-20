@@ -279,6 +279,54 @@ function looksLikeJobUrl(url, text = "") {
   return include.some((x) => hay.includes(x));
 }
 
+function isBlockedNonJobUrl(url, text = "") {
+  const hay = `${url} ${text}`.toLowerCase();
+  const blocked = [
+    "login",
+    "signin",
+    "sign-in",
+    "auth",
+    "sso",
+    "oauth",
+    "account",
+    "register",
+    "signup",
+    "sign-up",
+    "faq",
+    "help",
+    "support",
+    "contact",
+    "about",
+    "privacy",
+    "terms",
+    "home",
+    "/#",
+    "javascript:void",
+  ];
+  return blocked.some((b) => hay.includes(b));
+}
+
+function looksLikeDirectApplyUrl(url) {
+  const lc = (url || "").toLowerCase();
+  const good = [
+    "apply",
+    "requisition",
+    "jobid=",
+    "job_id=",
+    "job/\\d+",
+    "/jobs/",
+    "/job/",
+    "/careers/job",
+    "workdayjobs",
+    "greenhouse.io",
+    "lever.co",
+    "smartrecruiters",
+    "ashby",
+  ];
+  if (good.some((g) => lc.includes(g))) return true;
+  return /\/job\/\d+|\/jobs\/\d+|\/positions\/\d+/i.test(url || "");
+}
+
 function scoreAlignment(text) {
   const lc = text.toLowerCase();
   let score = 0;
@@ -334,14 +382,39 @@ function findFinalApplyUrl(html, baseUrl) {
   ];
   for (const l of links) {
     const hay = `${l.url} ${l.text}`.toLowerCase();
+    if (isBlockedNonJobUrl(l.url, l.text)) continue;
     if (applySignals.some((s) => hay.includes(s))) {
       const normalized = normalizeUrl(l.url);
-      if (normalized) return normalized;
+      if (normalized && looksLikeDirectApplyUrl(normalized)) return normalized;
     }
   }
   const fallback = normalizeUrl(baseUrl);
-  if (fallback && looksLikeJobUrl(fallback, "")) return fallback;
+  if (
+    fallback &&
+    looksLikeJobUrl(fallback, "") &&
+    !isBlockedNonJobUrl(fallback, "") &&
+    looksLikeDirectApplyUrl(fallback)
+  ) {
+    return fallback;
+  }
   return null;
+}
+
+function isLikelyJobPage(url, title, snippet) {
+  const hay = `${url} ${title} ${snippet}`.toLowerCase();
+  if (isBlockedNonJobUrl(url, `${title} ${snippet}`)) return false;
+  const positive = [
+    "job description",
+    "responsibilities",
+    "qualifications",
+    "apply",
+    "requisition",
+    "job id",
+    "job title",
+    "opening",
+    "position",
+  ];
+  return positive.some((p) => hay.includes(p));
 }
 
 function isFresherFriendly(text) {
@@ -409,6 +482,7 @@ async function scrapeDomain(domain) {
         /workdayjobs|greenhouse|lever\.co|smartrecruiters|ashby/i.test(norm);
 
       if (!sameRoot) continue;
+      if (isBlockedNonJobUrl(norm, link.text)) continue;
 
       if (looksLikeJobUrl(norm, link.text)) {
         const key = norm;
@@ -424,7 +498,8 @@ async function scrapeDomain(domain) {
       if (
         queue.length < 120 &&
         !visited.has(norm) &&
-        looksLikeJobUrl(norm, link.text)
+        looksLikeJobUrl(norm, link.text) &&
+        !isBlockedNonJobUrl(norm, link.text)
       ) {
         queue.push(norm);
       }
@@ -466,7 +541,9 @@ async function scrapeDomain(domain) {
         j.techAligned &&
         j.indiaEligible &&
         (j.roleType === "internship" || j.roleType === "fte") &&
-        !!j.finalApplyUrl,
+        !!j.finalApplyUrl &&
+        looksLikeDirectApplyUrl(j.finalApplyUrl) &&
+        isLikelyJobPage(j.finalApplyUrl, j.title, j.snippet),
     )
     .sort((a, b) => b.score - a.score);
 
