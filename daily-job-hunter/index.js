@@ -3,6 +3,42 @@ const { google } = require("googleapis");
 const nodemailer = require("nodemailer");
 require("dotenv").config();
 
+// Google Sheets quota protection
+const QUOTA_LIMIT_PER_MINUTE = 60;
+const SAFE_QUOTA_PERCENT = 0.5;
+const MAX_WRITES_PER_MINUTE = Math.floor(QUOTA_LIMIT_PER_MINUTE * SAFE_QUOTA_PERCENT);
+
+let writeCountThisMinute = 0;
+let minuteStartTime = Date.now();
+
+function resetQuotaIfNewMinute() {
+  const now = Date.now();
+  if (now - minuteStartTime >= 60000) {
+    writeCountThisMinute = 0;
+    minuteStartTime = now;
+    console.log("  [Quota] Minute reset, quota restored");
+  }
+}
+
+function canWrite() {
+  resetQuotaIfNewMinute();
+  return writeCountThisMinute < MAX_WRITES_PER_MINUTE;
+}
+
+function incrementWriteCount() {
+  writeCountThisMinute++;
+  if (writeCountThisMinute % 5 === 0) {
+    console.log(`  [Quota] ${writeCountThisMinute}/${MAX_WRITES_PER_MINUTE} writes this minute`);
+  }
+}
+
+async function waitForQuotaReset() {
+  const waitTime = 60000 - (Date.now() - minuteStartTime) + 1000;
+  console.log(`  [Quota] Limit reached, waiting ${Math.ceil(waitTime/1000)}s for reset...`);
+  await new Promise(resolve => setTimeout(resolve, waitTime));
+  resetQuotaIfNewMinute();
+}
+
 const SHEET_LINK =
   process.env.JOB_SHEET_LINK ||
   "https://docs.google.com/spreadsheets/d/1DvNSIB_M9yMx6u3Fh2wzdzRpZ_toJmaIwfrelnwP6Ts/edit?gid=0#gid=0";
@@ -184,12 +220,16 @@ async function getFirstSheetTitle(sheets, spreadsheetId) {
 }
 
 async function ensureHeaders(sheets, spreadsheetId, sheetTitle) {
+  if (!canWrite()) {
+    await waitForQuotaReset();
+  }
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range: `${sheetTitle}!A1:F1`,
     valueInputOption: "RAW",
     requestBody: { values: [REQUIRED_HEADERS] },
   });
+  incrementWriteCount();
 }
 
 async function loadDomainRows(sheets, spreadsheetId, sheetTitle) {
@@ -674,6 +714,11 @@ function oneLine(job) {
 }
 
 async function updateDomainRow(sheets, spreadsheetId, sheetTitle, rowNumber, row) {
+  // Check quota before writing
+  if (!canWrite()) {
+    await waitForQuotaReset();
+  }
+  
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range: `${sheetTitle}!B${rowNumber}:F${rowNumber}`,
@@ -690,6 +735,7 @@ async function updateDomainRow(sheets, spreadsheetId, sheetTitle, rowNumber, row
       ],
     },
   });
+  incrementWriteCount();
 }
 
 async function sendJobsEmail(jobs) {

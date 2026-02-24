@@ -468,8 +468,39 @@ async function getRecentlySentEmails(sheetLink) {
   return recentlySentEmails;
 }
 
+// Google Sheets quota protection
+const QUOTA_LIMIT_PER_MINUTE = 60;
+const SAFE_QUOTA_PERCENT = 0.5;
+const MAX_WRITES_PER_MINUTE = Math.floor(QUOTA_LIMIT_PER_MINUTE * SAFE_QUOTA_PERCENT);
+const BATCH_SIZE = 10;
+
+let writeCountThisMinute = 0;
+let minuteStartTime = Date.now();
+
+function resetQuotaIfNewMinute() {
+  const now = Date.now();
+  if (now - minuteStartTime >= 60000) {
+    writeCountThisMinute = 0;
+    minuteStartTime = now;
+  }
+}
+
+function canWrite() {
+  resetQuotaIfNewMinute();
+  return writeCountThisMinute < MAX_WRITES_PER_MINUTE;
+}
+
+function incrementWriteCount() {
+  writeCountThisMinute++;
+  console.log(`  [Quota] ${writeCountThisMinute}/${MAX_WRITES_PER_MINUTE} writes this minute`);
+}
+
+async function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /**
- * Update Google Sheet with error column for failed emails
+ * Update Google Sheet with error column for failed emails (with quota protection)
  */
 async function updateErrorColumn(sheetLink, failedEmails) {
   if (failedEmails.size === 0) {
@@ -480,6 +511,7 @@ async function updateErrorColumn(sheetLink, failedEmails) {
   console.log(
     `\n📝 Updating error column for ${failedEmails.size} failed emails...`,
   );
+  console.log(`  [Quota] Max ${MAX_WRITES_PER_MINUTE} writes/minute (50% of limit)`);
 
   const spreadsheetId = sheetLink.match(/\/d\/([a-zA-Z0-9-_]+)/)[1];
 
@@ -518,14 +550,35 @@ async function updateErrorColumn(sheetLink, failedEmails) {
   }
 
   if (updates.length > 0) {
-    await sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId,
-      resource: { data: updates, valueInputOption: "RAW" },
-    });
-    console.log(`Updated error column for ${updates.length} failed emails`);
+    // Chunk updates for quota protection
+    const chunks = [];
+    for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+      chunks.push(updates.slice(i, i + BATCH_SIZE));
+    }
+
+    let successfulUpdates = 0;
+    for (let i = 0; i < chunks.length; i++) {
+      if (!canWrite()) {
+        console.log(`⚠️ Quota limit reached (50%), stopping after ${successfulUpdates} updates`);
+        break;
+      }
+
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        resource: { data: chunks[i], valueInputOption: "RAW" },
+      });
+      incrementWriteCount();
+      successfulUpdates += chunks[i].length;
+
+      if (i < chunks.length - 1) {
+        await delay(2000);
+      }
+    }
+    console.log(`Updated error column for ${successfulUpdates} failed emails`);
+    return successfulUpdates;
   }
 
-  return updates.length;
+  return 0;
 }
 
 /**

@@ -30,9 +30,9 @@ Surya Janardhan
     const allUnsentEmails = await loadUnsentEmails(sheetLink);
     console.log(`Found ${allUnsentEmails.length} unsent emails`);
 
-    // Take only first 30 unsent emails for this run
-    const unsentEmails = allUnsentEmails.slice(0, 30);
-    console.log(`Processing ${unsentEmails.length} emails this run`);
+    // Take only first 20 unsent emails for this run (reduced to avoid Sheets quota)
+    const unsentEmails = allUnsentEmails.slice(0, 20);
+    console.log(`Processing ${unsentEmails.length} emails this run (max 20 to stay under Sheets quota)`);
 
     if (unsentEmails.length === 0) {
       console.log("No unsent emails found. All done!");
